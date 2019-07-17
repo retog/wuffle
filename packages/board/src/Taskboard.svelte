@@ -62,6 +62,8 @@
 
   let filterOptions = {};
 
+  let updatedItems = {};
+
   $: localStore.set(COLUMNS_COLLAPSED_KEY, collapsed);
 
   // shown items
@@ -297,16 +299,26 @@
       const {
         items: _items,
         itemsById: _itemsById,
-        cursor: _cursor
+        cursor: _cursor,
+        updatedItems: _updatedItems
       } = applyUpdates(updates, items, itemsById);
+
+      console.log('UPDATED RESTE');
 
       items = _items;
       itemsById = _itemsById;
+      updatedItems = _updatedItems;
       cursor = _cursor;
+    }).then(function() {
+      setTimeout(function() {
+        updatedItems = {};
+      }, 400);
     });
   }
 
   function applyUpdates(updates, items, itemsById) {
+
+    const updatedItems = {};
 
     const cursor = updates[updates.length - 1].id;
 
@@ -319,6 +331,8 @@
       const {
         id
       } = issue;
+
+      updatedItems[id] = true;
 
       const from = itemsById[id];
 
@@ -350,7 +364,8 @@
     return {
       cursor,
       itemsById,
-      items
+      items,
+      updatedItems
     };
   }
 
@@ -700,6 +715,7 @@
                 <Card
                   item={item}
                   onSelect={ applyFilter }
+                  highlight={ updatedItems[item.id] }
                 />
               </div>
             {/each}

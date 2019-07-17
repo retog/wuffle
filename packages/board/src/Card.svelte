@@ -24,6 +24,7 @@
   export let item;
 
   export let className = '';
+  export let highlight = false;
 
   export let onSelect;
 
@@ -96,7 +97,7 @@
   }
 
   .board-card-links.attached {
-    background: #F9F9F9;
+    background-color: #F9F9F9;
     border-radius: 0 0 4px 4px;
     box-shadow: inset 0 3px 5px -2px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.1);
     margin-top: -6px;
@@ -105,6 +106,20 @@
 
     :global(.card-link):first-child {
       border-top: none;
+    }
+  }
+
+  .board-card-links.attached,
+  .board-card {
+    transition: background-color .3s;
+  }
+
+  $highlight-color: #fffef0;
+
+  .highlight {
+    .board-card,
+    .board-card-links.attached {
+      background-color: #fffef0;
     }
   }
 
@@ -150,7 +165,7 @@
 
 </style>
 
-<div class="board-card-container { className }">
+<div class="board-card-container { className }" class:highlight={ highlight }>
   <div class="board-card">
     <div class="header">
       {#if children.length}
