@@ -12,6 +12,12 @@
 
   import Dragula from 'dragula';
 
+  import { flip } from './svelte/animate';
+
+  import { quintOut } from 'svelte/easing';
+  import { crossfade } from './svelte/transition';
+  import { toggle } from './svelte/global';
+
   import {
     Id,
     createLocalStore,
@@ -20,7 +26,8 @@
     isOpenOrMerged,
     isPull,
     periodic,
-    throttle
+    throttle,
+    debounce
   } from './util';
 
   import loaderImage from './loader.png';
@@ -39,6 +46,29 @@
   const history = createHistory();
 
   const navId = Id();
+
+  const [send, receive] = crossfade({
+    duration: d => Math.sqrt(d * 200),
+
+    fallback(node, params, intro) {
+      const style = getComputedStyle(node);
+      const transform = style.transform === 'none' ? '' : style.transform;
+
+      return {
+        duration: params.duration,
+        easing: quintOut,
+        css: t => `
+          opacity: ${intro ? t : 1 - t}
+        `
+      };
+    }
+  });
+
+  const animationsOn = debounce(() => {
+    console.log('ANIMATION', true);
+
+    toggle(true);
+  }, 30);
 
   let name = '';
   let columns = {};
@@ -188,7 +218,7 @@
     console.time('Taskboard#updateCards');
 
     const _itemsById = {};
-    const _filterOptions = {};
+    const _filterOptionsMap = {};
 
     for (const columnItems of Object.values(_items)) {
 
@@ -202,25 +232,25 @@
           requested_reviewers
         } = item;
 
-        const repoOptions = _filterOptions['repo'] = _filterOptions['repo'] || {};
+        const repoOptions = _filterOptionsMap['repo'] = _filterOptionsMap['repo'] || {};
 
         repoOptions[repository.name] = true;
 
         if (milestone) {
-          const milestoneOptions = _filterOptions['milestone'] = _filterOptions['milestone'] || {};
+          const milestoneOptions = _filterOptionsMap['milestone'] = _filterOptionsMap['milestone'] || {};
 
           milestoneOptions[milestone.title] = true;
         }
 
         assignees.forEach(assignee => {
-          const assigneeOptions = _filterOptions['assignee'] = _filterOptions['assignee'] || {};
+          const assigneeOptions = _filterOptionsMap['assignee'] = _filterOptionsMap['assignee'] || {};
 
           assigneeOptions[assignee.login] = true;
         });
 
         if (requested_reviewers) {
           requested_reviewers.forEach(reviewer => {
-            const reviewerOptions = _filterOptions['reviewer'] = _filterOptions['reviewer'] || {};
+            const reviewerOptions = _filterOptionsMap['reviewer'] = _filterOptionsMap['reviewer'] || {};
 
             reviewerOptions[reviewer.login] = true;
           });
@@ -229,7 +259,7 @@
         labels.forEach(label => {
 
           if (!label.column_label) {
-            const labelOptions = _filterOptions['label'] = _filterOptions['label'] || {};
+            const labelOptions = _filterOptionsMap['label'] = _filterOptionsMap['label'] || {};
 
             labelOptions[label.name] = true;
           }
@@ -240,9 +270,7 @@
 
     }
 
-    items = _items;
-    itemsById = _itemsById;
-    filterOptions = Object.entries(_filterOptions).reduce((opts, entry) => {
+    const _filterOptions = Object.entries(_filterOptionsMap).reduce((opts, entry) => {
 
       const [ key, value ] = entry;
 
@@ -251,7 +279,11 @@
       return opts;
     }, {});
 
+    items = _items;
+    itemsById = _itemsById;
+    filterOptions = _filterOptions;
     cursor = _cursor;
+
     console.timeEnd('Taskboard#updateCards');
   }
 
@@ -270,6 +302,8 @@
         items,
         cursor
       } = result;
+
+      toggle(false);
 
       updateCards(items, cursor);
     }).finally(() => updating--);
@@ -391,7 +425,9 @@
           ? previousOrder + 731241.218
           : nextOrder
             ? nextOrder - 811231.691
-            : -71271.88455;
+            : -771271.88455;
+
+    toggle(false);
 
     handleCardDrop(
       itemsById[cardId],
@@ -696,6 +732,11 @@
                 class="card-container"
                 data-card-id={ item.id }
                 data-card-order={ item.order }
+                in:receive="{{key: item.id, duration: 300}}"
+                out:send="{{key: item.id, duration: 300}}"
+                animate:flip="{{ duration: 300 }}"
+                on:introend="{ animationsOn }"
+                on:outroend="{ animationsOn }"
               >
                 <Card
                   item={item}
