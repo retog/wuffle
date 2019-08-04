@@ -91,16 +91,55 @@ function UserAccess(logger, githubClient, events) {
       });
   }
 
+  function fetchPermissionLevel(username, repo, owner) {
+    return (
+      githubClient.getOrgScoped(owner)
+        .then(github => github.repos.getCollaboratorPermissionLevel({
+          repo,
+          owner,
+          username
+        }))
+        .then(res => res.data.permission)
+        .catch(err => {
+          log.warn('failed to fetch permissions', { username, owner, repo }, err);
+
+          return 'none';
+        })
+    );
+  }
+
   function getReadFilter(token) {
 
     if (!token) {
       return Promise.resolve(filterPublic);
     }
 
-    return cache.get(token, createReadFilter).catch(err => {
+    return cache.get(`read-filter:${token}`, createReadFilter).catch(err => {
       log.warn({ token }, 'failed to retrieve token-based access filter, defaulting to public read', err);
 
       return filterPublic;
+    });
+  }
+
+  async function getPermission(username, repo, owner) {
+    const key = `permissions:${username}:${repo}/${owner}`;
+
+    return cache.get(key, () => fetchPermissionLevel(username, repo, owner));
+  }
+
+  function canRead(username, repoAndOwner) {
+
+    const {
+      repo,
+      owner
+    } = repoAndOwner;
+
+    return getPermission(username, repo, owner).then(permission => {
+      return (
+        permission === 'read' ||
+        permission === 'write' ||
+        permission === 'admin'
+      );
     });
   }
 
@@ -111,27 +150,12 @@ function UserAccess(logger, githubClient, events) {
       owner
     } = repoAndOwner;
 
-    return githubClient.getOrgScoped(owner)
-      .then(github => {
-        return github.repos.getCollaboratorPermissionLevel({
-          repo,
-          owner,
-          username
-        });
-      }).then(res => {
-        const {
-          permission
-        } = res.data;
-
-        return (
-          permission === 'write' ||
-          permission === 'admin'
-        );
-      }).catch(err => {
-        log.warn('failed to determine write status', { username, owner, repo }, err);
-
-        return false;
-      });
+    return getPermission(username, repo, owner).then(permission => {
+      return (
+        permission === 'write' ||
+        permission === 'admin'
+      );
+    });
   }
 
 
@@ -140,6 +164,7 @@ function UserAccess(logger, githubClient, events) {
   this.getReadFilter = getReadFilter;
 
   this.canWrite = canWrite;
+  this.canRead = canRead;
 
 
   // behavior ///////////////
