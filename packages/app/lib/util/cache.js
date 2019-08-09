@@ -25,10 +25,14 @@ class Cache {
       const entry = entries[key];
 
       if (now - entry.created > ttl) {
-        delete entries[key];
+        this.remove(key);
       }
     });
 
+  }
+
+  remove(key) {
+    delete this.entries[key];
   }
 
   get(key, defaultValue) {

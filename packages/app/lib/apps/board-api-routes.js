@@ -19,6 +19,7 @@ const {
  * @param {GitHubClient} githubClient
  * @param {AuthRoutes} authRoutes
  * @param {GithubIssues} githubIssues
+ * @parma {GithubRepositories} githubRepositories
  * @param {Search} search
  * @param {Columns} columns
  */
@@ -27,6 +28,7 @@ module.exports = async (
   router, logger,
   githubClient, authRoutes,
   userAccess, githubIssues,
+  githubRepositories,
   search, columns
 ) => {
 
@@ -204,6 +206,37 @@ module.exports = async (
   });
 
 
+  router.get('/wuffle/board/new_issue_endpoint', ...middlewares, async (req, res) => {
+
+    const {
+      repo,
+      owner
+    } = req.query;
+
+    if (!repo || !owner) {
+      return res.status(400).json({});
+    }
+
+    const login = authRoutes.getGitHubLogin(req);
+
+    if (!login) {
+      return res.status(401).json({});
+    }
+
+    const canRead = await userAccess.canRead(login, { repo, owner });
+
+    if (!canRead) {
+      return res.status(403).json({});
+    }
+
+    const hasTemplates = await githubRepositories.hasIssueTemplates(repo, owner);
+
+    return res.status(200).json({
+      url: `https://github.com/${owner}/${repo}/issues/new${hasTemplates ? '/chooser' : ''}`
+    });
+  });
+
+
   router.post('/wuffle/board/issues/move', ...middlewares, bodyParser, async (req, res) => {
 
     const login = authRoutes.getGitHubLogin(req);
@@ -227,18 +260,18 @@ module.exports = async (
       return res.status(404).json({});
     }
 
-    const column = columns.getByName(columnName);
-
-    if (!column) {
-      return res.status(404).json({});
-    }
-
     const repo = repoAndOwner(issue);
 
     const canWrite = await userAccess.canWrite(login, repo);
 
     if (!canWrite) {
       return res.status(403).json({});
+    }
+
+    const column = columns.getByName(columnName);
+
+    if (!column) {
+      return res.status(404).json({});
     }
 
     const token = authRoutes.getGitHubToken(req);
